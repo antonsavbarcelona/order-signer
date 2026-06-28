@@ -1,4 +1,5 @@
 import hmac
+import logging
 import os
 from typing import Any
 
@@ -9,6 +10,7 @@ from pydantic import BaseModel, Field
 
 
 app = FastAPI(title="Hyperliquid Order Signer", version="0.1.0")
+logger = logging.getLogger("order_signer")
 
 
 class SignL1ActionRequest(BaseModel):
@@ -41,6 +43,17 @@ def sign_l1_action_endpoint(
 
     private_key = normalize_private_key(req.private_key_hex)
     wallet = Account.from_key(private_key)
+    signer_address = wallet.address.lower()
+
+    logger.info(
+        "sign_l1_action request signer_address=%s nonce=%s is_mainnet=%s vault_address=%s expires_after=%s action=%s",
+        signer_address,
+        req.nonce,
+        req.is_mainnet,
+        req.vault_address,
+        req.expires_after,
+        req.action,
+    )
 
     try:
         signature = sign_l1_action(
@@ -52,16 +65,31 @@ def sign_l1_action_endpoint(
             req.is_mainnet,
         )
     except Exception as exc:
+        logger.exception(
+            "sign_l1_action failed signer_address=%s nonce=%s is_mainnet=%s",
+            signer_address,
+            req.nonce,
+            req.is_mainnet,
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Failed to sign Hyperliquid L1 action",
         ) from exc
 
+    logger.info(
+        "sign_l1_action response signer_address=%s nonce=%s r=%s s=%s v=%s",
+        signer_address,
+        req.nonce,
+        signature["r"],
+        signature["s"],
+        signature["v"],
+    )
+
     return SignL1ActionResponse(
         r=signature["r"],
         s=signature["s"],
         v=signature["v"],
-        signer_address=wallet.address.lower(),
+        signer_address=signer_address,
     )
 
 
