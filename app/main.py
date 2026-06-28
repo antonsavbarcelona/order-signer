@@ -96,6 +96,7 @@ def sign_l1_action_endpoint(
 def require_auth(authorization: str | None) -> None:
     expected = os.environ.get("SIGNER_SERVICE_TOKEN")
     if not expected:
+        logger.error("SIGNER_SERVICE_TOKEN is not configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="SIGNER_SERVICE_TOKEN is not configured",
@@ -104,6 +105,11 @@ def require_auth(authorization: str | None) -> None:
     prefix = "Bearer "
     received = authorization[len(prefix) :] if authorization and authorization.startswith(prefix) else ""
     if not hmac.compare_digest(received, expected):
+        logger.warning(
+            "Missing or invalid signer service token has_authorization_header=%s bearer_prefix=%s",
+            authorization is not None,
+            bool(authorization and authorization.startswith(prefix)),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid signer service token",
